@@ -29,6 +29,9 @@ public class RobotTeleOP extends LinearOpMode {
     private static final double FLYWHEEL_POWER = 1;
     private static final double INTAKE_POWER = 1;
 
+    private static final double DRIVE_ACCEL_RATE = 2.0;
+    private static final double DRIVE_DECEL_RATE = 4.0;
+
     @Override
     public void runOpMode() {
         // Fetch motors and servos and assign them to their respective hardware as set on the driver station
@@ -72,6 +75,9 @@ public class RobotTeleOP extends LinearOpMode {
 
         // Declare starting turret servo position
         double turretPosition = 0.5;
+
+        double leftCurrentPower = 0;
+        double rightCurrentPower = 0;
 
         // Reset runtime so calculations are accurate
         runtime.reset();
@@ -130,10 +136,10 @@ public class RobotTeleOP extends LinearOpMode {
                 turretInput = 0;
             }
 
-            double deltaTime = runtime.seconds();
+            double dTime = runtime.seconds();
             runtime.reset();
 
-            turretPosition += turretInput * TURRET_SPEED * deltaTime;
+            turretPosition += turretInput * TURRET_SPEED * dTime;
             turretPosition = Math.max(0, Math.min(1, turretPosition));
 
             turretServo.setPosition(turretPosition);
@@ -149,11 +155,16 @@ public class RobotTeleOP extends LinearOpMode {
             leftPower = leftPower / scale;
             rightPower = rightPower / scale;
 
+            leftCurrentPower = rampUpOrDown(leftCurrentPower, leftPower, dTime);
+            rightCurrentPower = rampUpOrDown(rightCurrentPower, rightPower, dTime);
+
             // Set motor power to calculated values
-            leftWheel.setPower(leftPower);
-            rightWheel.setPower(rightPower);
+            leftWheel.setPower(leftCurrentPower);
+            rightWheel.setPower(rightCurrentPower);
 
             // Display current power to driver station
+            telemetry.addData("Left wheel target", leftPower);
+            telemetry.addData("Right wheel target", rightPower);
             telemetry.addData("Left wheel power", leftWheel.getPower());
             telemetry.addData("Right wheel power", rightWheel.getPower());
             telemetry.update();
@@ -165,5 +176,17 @@ public class RobotTeleOP extends LinearOpMode {
         intakeMotor.setPower(0);
         flywheelMotor.setPower(0);
         feederServo.setPosition(FEEDER_SERVO_CLOSED_POSITION);
+    }
+
+    private double rampUpOrDown(double current, double target, double dTime) {
+        boolean speedingUp = Math.abs(target) > Math.abs(current) && (current == 0 || Math.signum(target) == Math.signum(current));
+        double rate = speedingUp ? DRIVE_ACCEL_RATE : DRIVE_DECEL_RATE;
+        double maxStep = rate * dTime;
+
+        double diff = target - current;
+        if (Math.abs(diff) <= maxStep) {
+            return target;
+        }
+        return current + Math.signum(diff) * maxStep;
     }
 }
